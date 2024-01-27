@@ -38,8 +38,7 @@ export async function createInvoice(formData: FormData) {
   const date = new Date().toISOString().split('T')[0];
   console.log({ customerId, amountInCents, status, date });
 
-  await sql`
-  INSERT INTO invoices (customer_id, amount, status, date)
+  await sql`INSERT INTO invoices (customer_id, amount, status, date)
   VALUES (${customerId}, ${amountInCents}, ${status}, ${date})
 `;
   revalidatePath('/dashboard/invoices');
@@ -57,11 +56,22 @@ export async function editInvoice(id: string, formData: FormData) {
   };
   const { customerId, amount, status } = CreateInvoice.parse(rawFormData);
   const amountInCents = amount * 100;
-  await sql`
-    UPDATE INVOICES
+  await sql` UPDATE INVOICES
     SET CUSTOMER_ID = ${customerId} , AMOUNT = ${amountInCents} , STATUS = ${status} 
     WHERE ID = ${id}
-  `
-  revalidatePath('/dashboard/invoices')
-  redirect('/dashboard/invoices')
+  `;
+  revalidatePath('/dashboard/invoices');
+  redirect('/dashboard/invoices');
+}
+
+// export async function deleteInvoice(id: string) {
+//   console.log(id);
+//   await sql`DELETE FORM INVOICES WHERE ID = ${id}`;
+//   revalidatePath('dashboard/invoices');
+// }
+
+export async function deleteInvoice(id: string) {
+  await sql`DELETE FROM invoices WHERE id = ${id}`;
+  revalidatePath('/dashboard/invoices');
+  redirect('/dashboard/invoices');
 }
