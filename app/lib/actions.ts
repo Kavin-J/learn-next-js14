@@ -4,29 +4,51 @@ import { sql } from '@vercel/postgres';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 const FormSchema = z.object({
+  // z.string().nonempty().min(2, {message: 'Must be at least 2 characters'})
   id: z.string(),
-  customerId: z.string(),
-  amount: z.number(),
-  status: z.enum(['pending', 'paid']),
+  customerId: z.string().nonempty('Please select a customer.'),
+  amount: z.coerce
+    .number()
+    .gt(0, { message: 'Please enter an number greater than $0.' }),
+  status: z.enum(['pending', 'paid'], {
+    invalid_type_error: 'Please select an invoice status.',
+  }),
   date: z.string(),
 });
 const CreateInvoice = FormSchema.omit({ id: true, date: true });
 
 //Mock   generate Date Func
-function generateRandomDate(from: Date, to: Date): Date {
-  return new Date(
-    from.getTime() + Math.random() * (to.getTime() - from.getTime()),
-  );
-}
+// function generateRandomDate(from: Date, to: Date): Date {
+//   return new Date(
+//     from.getTime() + Math.random() * (to.getTime() - from.getTime()),
+//   );
+// }
 
-export async function createInvoice(formData: FormData) {
+export type State = {
+  errors?: {
+    customerId?: string[];
+    amount?: string[];
+    status?: string[];
+  };
+  message?: string | null;
+};
+export async function createInvoice(prevState: State, formData: FormData) {
   const rawFormData = {
     customerId: formData.get('customerId'),
     amount: Number(formData.get('amount')),
     status: formData.get('status'),
   };
+  console.log(rawFormData);
 
-  const { customerId, amount, status } = CreateInvoice.parse(rawFormData);
+  const validatedFields = CreateInvoice.safeParse(rawFormData);
+  // If form validation fails, return errors early. Otherwise, continue.
+  if (!validatedFields.success) {
+    return {
+      errors: validatedFields.error.flatten().fieldErrors,
+      message: 'Missing Fields. Failed to Create Invoice.',
+    };
+  }
+  const { customerId, amount, status } = validatedFields.data;
   const amountInCents = amount * 100;
   /** for Mock if you need to use real data comment this  and uncommment below statement*/
   // const date = new Date(
@@ -36,6 +58,7 @@ export async function createInvoice(formData: FormData) {
   //   .split('T')[0];
   /* for real data */
 
+  //////////////////////
   const date = new Date().toISOString().split('T')[0];
 
   try {
@@ -51,16 +74,26 @@ export async function createInvoice(formData: FormData) {
   redirect('/dashboard/invoices');
 }
 
-export async function editInvoice(id: string, formData: FormData) {
-  console.log(id);
-  console.log(formData);
+export async function editInvoice(
+  id: string,
+  prevState: State,
+  formData: FormData,
+) {
+  
 
   const rawFormData = {
     customerId: formData.get('customerId'),
     amount: Number(formData.get('amount')),
     status: formData.get('status'),
   };
-  const { customerId, amount, status } = CreateInvoice.parse(rawFormData);
+  const validatedFields = CreateInvoice.safeParse(rawFormData);
+  if (!validatedFields.success) {
+    return {
+      errors: validatedFields.error.flatten().fieldErrors,
+      message: 'Missing Fields. Failed to Create Invoice.',
+    };
+  }
+  const { customerId, amount, status } = validatedFields.data;
   const amountInCents = amount * 100;
   try {
     await sql` UPDATE INVOICES
@@ -77,8 +110,8 @@ export async function editInvoice(id: string, formData: FormData) {
 }
 
 export async function deleteInvoice(id: string) {
-  // Test Error 
-  throw new Error('Falied to Delete Invoice.')
+  // Test Error
+  // throw new Error('Falied to Delete Invoice.')
 
   try {
     await sql`DELETE FROM invoices WHERE id = ${id}`;
